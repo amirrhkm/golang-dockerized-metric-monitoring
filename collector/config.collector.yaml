@@ -1,6 +1,7 @@
 extensions:
   oidc:
-    issuer_url: http://[::1]:8080/realms/opentelemetry
+    issuer_url: http://localhost:8080/realms/opentelemetry
+    issuer_ca_path: /etc/server.pem
     audience: collector
     attribute: authorization
 
