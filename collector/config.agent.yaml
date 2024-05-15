@@ -1,0 +1,26 @@
+extensions:
+  oauth2client:
+    client_id: agent 
+    client_secret: NShYiPHKGwrOEOlu8bWbhDiyxOazBCLp
+    token_url: http://[::1]:8080/realms/opentelemetry/protocol/openid-connect/token
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+
+exporters:
+  otlp/secure:
+    endpoint: otel-collector:4317
+    tls:
+      ca_file: ./ca.pem
+    auth:
+      authenticator: oauth2client
+
+service:
+  extensions: [oauth2client]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/secure]
