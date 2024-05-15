@@ -15,7 +15,7 @@ const meterProvider = new MeterProvider({
 });
 
 const metricExporter = new OTLPMetricExporter({
-  url: "http://otel-collector:4317",
+  url: "http://otel-collector:5317",
 });
 
 const metricReader = new PeriodicExportingMetricReader({

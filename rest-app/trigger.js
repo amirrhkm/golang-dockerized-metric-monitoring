@@ -12,7 +12,7 @@ const names = [
 
 function callApi(name) {
   axios
-    .get(`http://localhost:8080/user/${name}`)
+    .get(`http://localhost:3030/user/${name}`)
     .then((response) => {
       console.log(`Request for ${name} completed successfully`);
     })

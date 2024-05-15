@@ -2,7 +2,7 @@ require("./meter");
 const { metrics } = require("@opentelemetry/api");
 
 const meter = metrics.getMeter("express-server");
-let counter = meter.createCounter("learn-with-pratap", {
+let counter = meter.createCounter("name-request-counter", {
   description: "The number of requests per name the server got",
 });
 
