@@ -20,6 +20,10 @@ Prometheus is a monitoring and alerting toolkit designed for reliability and sca
 
 Grafana is an open-source platform for monitoring and observability. It provides a rich set of visualization options and dashboards for exploring and understanding metrics, logs, and traces data.
 
+### Nginx
+
+Nginx is a high-performance web server and reverse proxy that can also function as a load balancer, mail proxy, and HTTP cache. In this setup, Nginx acts as a reverse proxy to authenticate requests before forwarding them to the OpenTelemetry collector receiver.
+
 ## Setup
 
 To run the entire data collection stack locally using Docker, follow these steps:
