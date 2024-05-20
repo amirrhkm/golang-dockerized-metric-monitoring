@@ -1,6 +1,6 @@
 ﻿# Dockerized Data Collection with OpenTelemetry, Prometheus, and Grafana
 
-This repository contains a Dockerized setup for collecting, storing, and visualizing telemetry data using OpenTelemetry, Prometheus, and Grafana.
+      This repository contains a Dockerized setup for collecting, storing, and visualizing telemetry data using OpenTelemetry, Prometheus, and Grafana.
 
 ## Components
 
@@ -8,9 +8,9 @@ This repository contains a Dockerized setup for collecting, storing, and visuali
 
 OpenTelemetry provides a set of APIs, libraries, agents, and instrumentation to enable observability in distributed systems. In this setup, OpenTelemetry is responsible for instrumenting applications to collect telemetry data such as metrics, traces, and logs.
 
-#### Language-Agnostic and Platform-Agnostic Nature
+#### - Language-Agnostic and Platform-Agnostic Nature
 
-OpenTelemetry uses Protocol Buffers (protobuf) for serializing and transmitting telemetry data. Protocol Buffers are language-agnostic and platform-agnostic, meaning they can define data structures in a format independent of any specific programming language or computing platform. This allows for seamless integration and interoperability between different parts of a system, regardless of the languages or platforms they are built upon.
+      OpenTelemetry uses Protocol Buffers (protobuf) for serializing and transmitting telemetry data. Protocol Buffers are language-agnostic and platform-agnostic, meaning they can define data structures in a format independent of any specific programming language or computing platform. This allows for seamless integration and interoperability between different parts of a system, regardless of the languages or platforms they are built upon.
 
 ### Prometheus
 
