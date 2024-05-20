@@ -12,7 +12,7 @@ services:
       - net
 
   otel-collector:
-    image: otel/opentelemetry-collector:latest
+    image: otel/opentelemetry-collector-contrib:latest
     command: ["--config=/etc/otel-collector-config.yaml", "--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./collector/otel-collector-config.yaml:/etc/otel-collector-config.yaml
