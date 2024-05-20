@@ -7,7 +7,7 @@ services:
     environment:
       PORT: 8008
     depends_on:
-      - otel-collector
+      - nginx
     networks:
       - net
 
@@ -24,6 +24,18 @@ services:
       - "4317:4317" # OTLP gRPC receiver
       - "55679:55679" # zpages extension
       - "4318:4318"
+    networks:
+      - net
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/.htpasswd:/etc/nginx/.htpasswd
+    depends_on:
+      - otel-collector
     networks:
       - net
 
