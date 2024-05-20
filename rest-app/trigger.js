@@ -1,18 +1,12 @@
 const axios = require("axios");
 
 const names = [
-  "Amir",
-  "Nur",
-  "Hakim",
-  "Anas",
-  "Zulkifli",
-  "Nik",
-  "Asyraaf"
+  "a","b","c","d","e","f"
 ];
 
 function callApi(name) {
   axios
-    .get(`http://localhost:3030/user/${name}`)
+    .get(`http://localhost:8008/user/${name}`)
     .then((response) => {
       console.log(`Request for ${name} completed successfully`);
     })

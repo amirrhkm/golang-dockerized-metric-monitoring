@@ -2,13 +2,12 @@ require("./meter");
 const { metrics } = require("@opentelemetry/api");
 
 const meter = metrics.getMeter("express-server");
-let counter = meter.createCounter("name-request-counter", {
+let counter = meter.createCounter("name-req-count", {
   description: "The number of requests per name the server got",
 });
 
 const express = require("express");
 const app = express();
-
 app.get("/user/:name", (req, res) => {
   const data = {
     route: "/user/:name",
@@ -19,6 +18,6 @@ app.get("/user/:name", (req, res) => {
   res.send("Hello " + req.params.name);
 });
 
-app.listen(process.env.PORT || 8080, () => {
+app.listen(8008, () => {
   console.log("Server is up and running");
 });
