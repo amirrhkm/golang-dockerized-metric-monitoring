@@ -1,4 +1,4 @@
-﻿# Docker Compose Setup for Metric Monitoring
+# Docker Compose Setup for Metric Monitoring
 
 ## Overview
 
