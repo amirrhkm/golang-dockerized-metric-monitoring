@@ -1,2 +1,2 @@
-rest-app/node_modules
-rest-app/docs
+app-node/node_modules
+.gitignore
