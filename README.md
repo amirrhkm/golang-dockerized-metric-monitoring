@@ -47,20 +47,43 @@ This project sets up a metric monitoring stack using Docker Compose. The stack i
 - **Environment Variables**: Sets the `PORT` to 8008.
 
 ## Usage
+1. **Clone**: To get repo, run:
+   ```sh
+   git clone https://github.com/amirrhkm/metrics-monitoring.git
+   ```
 
-1. **Run**: To run the services, navigate to the directory containing `docker-compose.yaml` and run:
+2. **Run**: To run the services, navigate to the directory containing `docker-compose.yaml` and run:
    ```sh
    docker-compose up -d
    ```
+   
+3. **Run**: To run Go service, navigate to directory `app-go` and run:
+   ```sh
+   go run .
+   ```
+ 
+4. **Test**: To send metric into OpenTelemetry collector endpoint, navigate to directory `app-node` and run:
+- Install npm modules and get dependency:
+   ```sh
+   npm install
+   ```
+- send API request to http://localhost:8008 (Go)
+   ```sh
+   node trigger-go.js
+   ```
+- send API request to http://localhost:8080 (Node.js)
+   ```sh
+   node trigger-node.js
+   ```
 
-2. **Access Services**:
+5. **Access Services**:
 - REST App: http://localhost:8008 (Go) & http://localhost:8080 (Node.js)
 - Prometheus: http://localhost:9090
 - Grafana: http://localhost:3000
 
-3. **Shut Down**: To stop and remove the containers, run:
+6. **Shut Down**: To stop and remove the containers, run:
    ```sh
-   docker-compose down
+   docker-compose down -v
    ```
 
 ## Configuration
@@ -78,7 +101,8 @@ This project sets up a metric monitoring stack using Docker Compose. The stack i
 - The Grafana configuration file and provisioning files should be placed in the `./grafana` directory.
 
 ## Simple Architecture Diagram
-![metric-monitoring-diagram](https://github.com/amirrhkm/metrics-monitoring/assets/152793780/dd1ce8c1-2b41-4c04-b505-324b9f7c8d9b)
+![metric-monitoring-diagram](https://github.com/amirrhkm/metrics-monitoring/assets/152793780/ad288058-2b0a-4f1f-b0a7-a87972d7eb01)
+
 
 
 
