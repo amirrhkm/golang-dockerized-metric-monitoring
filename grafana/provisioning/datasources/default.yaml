@@ -4,12 +4,4 @@ datasources:
   - name: Open-Telemetry-Example
     type: prometheus
     url: http://prometheus:9090
-<<<<<<< HEAD
-<<<<<<< HEAD
     editable: true
-=======
-    editable: true
->>>>>>> 2a0d53ffc1650f76963627d44968da9d428dda96
-=======
-    editable: true
->>>>>>> 2a0d53ffc1650f76963627d44968da9d428dda96
