@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/metric"
@@ -17,15 +17,15 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func newResource() (*resource.Resource, error) {
+func newResource(serviceName string) (*resource.Resource, error) {
 	return resource.Merge(resource.Default(),
 		resource.NewWithAttributes(semconv.SchemaURL,
-			semconv.ServiceNameKey.String("my-service"),
+			semconv.ServiceNameKey.String(serviceName),
 			semconv.ServiceVersionKey.String("0.1.0"),
 		))
 }
 
-func initMeterProvider(ctx context.Context, res *resource.Resource) (func(context.Context) error, error) {
+func initMeterProvider(ctx context.Context, res *resource.Resource) (*sdkmetric.MeterProvider, error) {
 	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:admin"))
 
 	metricExporter, err := otlpmetricgrpc.New(ctx,
@@ -36,68 +36,113 @@ func initMeterProvider(ctx context.Context, res *resource.Resource) (func(contex
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics exporter: %w", err)
 	}
-	log.Println("Successfully initialized meter provider with basic authentication")
 
 	meterProvider := sdkmetric.NewMeterProvider(
 		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter)),
 		sdkmetric.WithResource(res),
 	)
-	otel.SetMeterProvider(meterProvider)
 
-	return meterProvider.Shutdown, nil
+	return meterProvider, nil
 }
 
-func initMeter() (func(context.Context) error, error) {
-	ctx := context.Background()
+func initMetrics(ctx context.Context, meterProvider *sdkmetric.MeterProvider, serviceName string) (metric.Int64Counter, error) {
+	meter := meterProvider.Meter(serviceName + "-meter")
 
-	res, err := newResource()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create resource: %w", err)
-	}
-
-	shutdown, err := initMeterProvider(ctx, res)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize meter provider: %w", err)
-	}
-
-	return shutdown, nil
-}
-
-var counter metric.Int64Counter
-
-func main() {
-	shutdown, err := initMeter()
-	if err != nil {
-		log.Fatalf("failed to initialize meter: %v", err)
-	}
-	defer func() {
-		if err := shutdown(context.Background()); err != nil {
-			log.Fatalf("failed to shutdown meter: %v", err)
-		}
-	}()
-
-	meter := otel.Meter("my-service-meter")
-
-	counter, err = meter.Int64Counter(
-		"go_api_call",
-		metric.WithDescription("Number of API calls."),
+	counter, err := meter.Int64Counter(
+		serviceName+"_api_call",
+		metric.WithDescription("Number of API calls to "+serviceName),
 	)
 	if err != nil {
-		log.Fatalf("failed to create counter: %v", err)
+		return nil, fmt.Errorf("failed to create counter for %s: %w", serviceName, err)
 	}
 
-	http.HandleFunc("/user/", func(w http.ResponseWriter, r *http.Request) {
-		name := r.URL.Path[len("/user/"):]
-		data := []attribute.KeyValue{
-			attribute.String("route", "/user/:name"),
-			attribute.String("name", name),
-		}
+	return counter, nil
+}
 
-		counter.Add(r.Context(), 1, metric.WithAttributes(data...))
-		log.Printf("Received request for name: %s", name)
+func main() {
+	ctx := context.Background()
 
-		fmt.Fprintf(w, "Hello %s", name)
-	})
+	// Resources
+	posCdsResource, err := newResource("POS/CDS")
+	if err != nil {
+		log.Fatalf("failed to initialize POS/CDS resource: %v", err)
+	}
+	hubResource, err := newResource("HUB")
+	if err != nil {
+		log.Fatalf("failed to initialize HUB resource: %v", err)
+	}
+	cloudResource, err := newResource("CLOUD")
+	if err != nil {
+		log.Fatalf("failed to initialize CLOUD resource: %v", err)
+	}
+
+	// meterProviders
+	posCdsMeterProvider, err := initMeterProvider(ctx, posCdsResource)
+	if err != nil {
+		log.Fatalf("failed to initialize POS/CDS meter provider: %v", err)
+	}
+	defer posCdsMeterProvider.Shutdown(ctx)
+
+	hubMeterProvider, err := initMeterProvider(ctx, hubResource)
+	if err != nil {
+		log.Fatalf("failed to initialize HUB meter provider: %v", err)
+	}
+	defer hubMeterProvider.Shutdown(ctx)
+
+	cloudMeterProvider, err := initMeterProvider(ctx, cloudResource)
+	if err != nil {
+		log.Fatalf("failed to initialize CLOUD meter provider: %v", err)
+	}
+	defer cloudMeterProvider.Shutdown(ctx)
+
+	// Counters
+	posCdsCounter, err := initMetrics(ctx, posCdsMeterProvider, "POS/CDS")
+	if err != nil {
+		log.Fatalf("failed to initialize POS/CDS metrics: %v", err)
+	}
+
+	hubCounter, err := initMetrics(ctx, hubMeterProvider, "HUB")
+	if err != nil {
+		log.Fatalf("failed to initialize HUB metrics: %v", err)
+	}
+
+	cloudCounter, err := initMetrics(ctx, cloudMeterProvider, "CLOUD")
+	if err != nil {
+		log.Fatalf("failed to initialize CLOUD metrics: %v", err)
+	}
+
+	var wg sync.WaitGroup
+
+	handleRequest := func(pattern string, counter metric.Int64Counter, serviceName string) {
+		http.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+			name := r.URL.Path[len(pattern):]
+			data := []attribute.KeyValue{
+				attribute.String("route", pattern+":name"),
+				attribute.String("name", name),
+			}
+
+			counter.Add(r.Context(), 1, metric.WithAttributes(data...))
+			log.Printf("Received request for %s service: %s", serviceName, name)
+
+			fmt.Fprintf(w, "Hello from %s service, %s", serviceName, name)
+		})
+	}
+
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		handleRequest("/POS/", posCdsCounter, "POS/CDS")
+	}()
+	go func() {
+		defer wg.Done()
+		handleRequest("/HUB/", hubCounter, "HUB")
+	}()
+	go func() {
+		defer wg.Done()
+		handleRequest("/CLOUD/", cloudCounter, "CLOUD")
+	}()
+
+	wg.Wait()
 
 	log.Println("Server is up and running on port 8008")
 	log.Fatal(http.ListenAndServe(":8008", nil))
