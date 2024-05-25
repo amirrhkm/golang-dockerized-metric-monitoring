@@ -45,7 +45,7 @@ func initMeterProvider(ctx context.Context, res *resource.Resource) (*sdkmetric.
 	return meterProvider, nil
 }
 
-func initMetrics(ctx context.Context, meterProvider *sdkmetric.MeterProvider, serviceName string) (metric.Int64Counter, error) {
+func initMetrics(meterProvider *sdkmetric.MeterProvider, serviceName string) (metric.Int64Counter, error) {
 	meter := meterProvider.Meter(serviceName + "-meter")
 
 	counter, err := meter.Int64Counter(
@@ -63,9 +63,9 @@ func main() {
 	ctx := context.Background()
 
 	// Resources
-	posCdsResource, err := newResource("POS/CDS")
+	posResource, err := newResource("POS")
 	if err != nil {
-		log.Fatalf("failed to initialize POS/CDS resource: %v", err)
+		log.Fatalf("failed to initialize POS resource: %v", err)
 	}
 	hubResource, err := newResource("HUB")
 	if err != nil {
@@ -77,11 +77,11 @@ func main() {
 	}
 
 	// meterProviders
-	posCdsMeterProvider, err := initMeterProvider(ctx, posCdsResource)
+	posMeterProvider, err := initMeterProvider(ctx, posResource)
 	if err != nil {
 		log.Fatalf("failed to initialize POS/CDS meter provider: %v", err)
 	}
-	defer posCdsMeterProvider.Shutdown(ctx)
+	defer posMeterProvider.Shutdown(ctx)
 
 	hubMeterProvider, err := initMeterProvider(ctx, hubResource)
 	if err != nil {
@@ -96,17 +96,17 @@ func main() {
 	defer cloudMeterProvider.Shutdown(ctx)
 
 	// Counters
-	posCdsCounter, err := initMetrics(ctx, posCdsMeterProvider, "POS/CDS")
+	posCounter, err := initMetrics(posMeterProvider, "POS")
 	if err != nil {
-		log.Fatalf("failed to initialize POS/CDS metrics: %v", err)
+		log.Fatalf("failed to initialize POS metrics: %v", err)
 	}
 
-	hubCounter, err := initMetrics(ctx, hubMeterProvider, "HUB")
+	hubCounter, err := initMetrics(hubMeterProvider, "HUB")
 	if err != nil {
 		log.Fatalf("failed to initialize HUB metrics: %v", err)
 	}
 
-	cloudCounter, err := initMetrics(ctx, cloudMeterProvider, "CLOUD")
+	cloudCounter, err := initMetrics(cloudMeterProvider, "CLOUD")
 	if err != nil {
 		log.Fatalf("failed to initialize CLOUD metrics: %v", err)
 	}
@@ -131,15 +131,15 @@ func main() {
 	wg.Add(3)
 	go func() {
 		defer wg.Done()
-		handleRequest("/POS/", posCdsCounter, "POS/CDS")
+		handleRequest("/pos/", posCounter, "POS")
 	}()
 	go func() {
 		defer wg.Done()
-		handleRequest("/HUB/", hubCounter, "HUB")
+		handleRequest("/hub/", hubCounter, "HUB")
 	}()
 	go func() {
 		defer wg.Done()
-		handleRequest("/CLOUD/", cloudCounter, "CLOUD")
+		handleRequest("/cloud/", cloudCounter, "CLOUD")
 	}()
 
 	wg.Wait()
