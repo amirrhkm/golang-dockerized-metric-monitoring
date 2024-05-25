@@ -47,7 +47,7 @@ setInterval(() => {
   console.log(`--- request interval ---`);
   callApi(pos[index], hub[index], cloud[index]);
 
-  if (index === names.length - 1) {
+  if (index === pos.length - 1) {
     index = 0;
   } else {
     index++;
