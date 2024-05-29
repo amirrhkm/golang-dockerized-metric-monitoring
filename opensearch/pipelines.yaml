@@ -1,0 +1,12 @@
+simple-sample-pipeline:
+  source:
+    otel_metrics_source:
+      port: 21891
+      ssl: false
+  sink:
+    - opensearch:
+        hosts: ["http://opensearch-node1:9200"]
+        index_type: custom
+        index: metrics-%{yyyy.MM.dd}
+        max_retries: 20
+        bulk_size: 4
