@@ -101,7 +101,7 @@ This project sets up a metric monitoring stack using Docker Compose. The stack i
 - The Grafana configuration file and provisioning files should be placed in the `./grafana` directory.
 
 ## Simple Architecture Diagram
-![metric-monitoring-diagram](https://github.com/amirrhkm/metrics-monitoring/assets/152793780/ad288058-2b0a-4f1f-b0a7-a87972d7eb01)
+![otel-dataprepper](https://github.com/amirrhkm/metrics-monitoring/assets/152793780/3810be1b-074a-44ad-988f-0fbf74978d22)
 
 
 
