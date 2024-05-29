@@ -3,22 +3,16 @@ otel-metrics-pipeline:
   delay: 5000
   source:
     otel_metrics_source:
-      health_check_service: true
       ssl: false
-  buffer:
-    bounded_blocking:
-      buffer_size: 1024 # max number of records the buffer accepts
-      batch_size: 256 # max number of records the buffer drains after each read
+      port: 21892
+      authentication:
+        unauthenticated:
   processor:
-    - otel_metrics:
-        calculate_histogram_buckets: true
-        calculate_exponential_histogram_buckets: true
-        exponential_histogram_max_allowed_scale: 10
-        flatten_attributes: false
+    - otel_metrics_raw_processor:
   sink:
     - opensearch:
         hosts: ["http://opensearch:9200"]
         index_type: custom
-        index: metrics-%{yyyy.MM.dd}
-        max_retries: 20
-        bulk_size: 4
+        index: metrics_index
+        username: admin
+        password: admin
