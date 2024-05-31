@@ -1,55 +1,34 @@
 const axios = require("axios");
 
-const pos = [
-  "a","b","c","d","e","f"
-];
-
-const hub = [
-  "1","2","3","4","5","6"
-];
-
-const cloud = [
-  "z","y","x","w","v","u"
-];
-
-function callApi(pos, hub, cloud) {
+function callApi(a, b, c) {
   axios
-    .get(`http://localhost:8008/pos/${pos}`)
+    .get(`http://localhost:8008/service/${a}`)
     .then((response) => {
-      console.log(`Request for ${pos} completed successfully`);
+      console.log(`Request for ${a} completed successfully`);
     })
     .catch((error) => {
-      console.error(`Error making request for ${pos}: ${error.message}`);
+      console.error(`Error making request for ${a}: ${error.message}`);
     });
 
   axios
-    .get(`http://localhost:8008/hub/${hub}`)
+    .get(`http://localhost:8008/service/${b}`)
     .then((response) => {
-      console.log(`Request for ${hub} completed successfully`);
+      console.log(`Request for ${b} completed successfully`);
     })
     .catch((error) => {
-      console.error(`Error making request for ${hub}: ${error.message}`);
+      console.error(`Error making request for ${b}: ${error.message}`);
     });
 
   axios
-    .get(`http://localhost:8008/cloud/${cloud}`)
+    .get(`http://localhost:8008/service/${c}`)
     .then((response) => {
-      console.log(`Request for ${cloud} completed successfully`);
+      console.log(`Request for ${c} completed successfully`);
     })
     .catch((error) => {
-      console.error(`Error making request for ${cloud}: ${error.message}`);
+      console.error(`Error making request for ${c}: ${error.message}`);
     });
 }
 
 let index = 0;
 
-setInterval(() => {
-  console.log(`--- request interval ---`);
-  callApi(pos[index], hub[index], cloud[index]);
-
-  if (index === pos.length - 1) {
-    index = 0;
-  } else {
-    index++;
-  }
-}, 10);
+callApi(1, 0, 1);

@@ -6,15 +6,28 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	"google.golang.org/grpc/credentials/insecure"
+)
+
+var (
+	aGauge metric.Int64ObservableGauge
+	bGauge metric.Int64ObservableGauge
+	cGauge metric.Int64ObservableGauge
+
+	aValue int64
+	bValue int64
+	cValue int64
+
+	mu sync.Mutex
 )
 
 func newResource(serviceName string) (*resource.Resource, error) {
@@ -45,105 +58,144 @@ func initMeterProvider(ctx context.Context, res *resource.Resource) (*sdkmetric.
 	return meterProvider, nil
 }
 
-func initMetrics(meterProvider *sdkmetric.MeterProvider, serviceName string) (metric.Int64Counter, error) {
+func initGauges(meterProvider *sdkmetric.MeterProvider, serviceName string) error {
 	meter := meterProvider.Meter(serviceName + "-meter")
 
-	counter, err := meter.Int64Counter(
-		serviceName+"_api_call",
-		metric.WithDescription("Number of API calls to "+serviceName),
+	var err error
+	aGauge, err = meter.Int64ObservableGauge(
+		serviceName+"_param_a",
+		metric.WithDescription("Tracks the status of param_a (0 or 1)"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create counter for %s: %w", serviceName, err)
+		return fmt.Errorf("failed to create gauge for param_a: %w", err)
 	}
 
-	return counter, nil
+	bGauge, err = meter.Int64ObservableGauge(
+		serviceName+"_param_b",
+		metric.WithDescription("Tracks the status of param_b (0 or 1)"),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create gauge for param_b: %w", err)
+	}
+
+	cGauge, err = meter.Int64ObservableGauge(
+		serviceName+"_param_c",
+		metric.WithDescription("Tracks the status of param_c (0 or 1)"),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create gauge for param_c: %w", err)
+	}
+
+	_, err = meter.RegisterCallback(func(ctx context.Context, observer metric.Observer) error {
+		mu.Lock()
+		defer mu.Unlock()
+
+		observer.ObserveInt64(aGauge, aValue)
+		observer.ObserveInt64(bGauge, bValue)
+		observer.ObserveInt64(cGauge, cValue)
+		return nil
+	}, aGauge, bGauge, cGauge)
+
+	if err != nil {
+		return fmt.Errorf("failed to register callback: %w", err)
+	}
+
+	return nil
 }
 
 func main() {
 	ctx := context.Background()
 
 	// Resources
-	posResource, err := newResource("POS")
+	aResource, err := newResource("A")
 	if err != nil {
-		log.Fatalf("failed to initialize POS resource: %v", err)
+		log.Fatalf("failed to initialize A resource: %v", err)
 	}
-	hubResource, err := newResource("HUB")
+	bResource, err := newResource("B")
 	if err != nil {
-		log.Fatalf("failed to initialize HUB resource: %v", err)
+		log.Fatalf("failed to initialize B resource: %v", err)
 	}
-	cloudResource, err := newResource("CLOUD")
+	cResource, err := newResource("C")
 	if err != nil {
-		log.Fatalf("failed to initialize CLOUD resource: %v", err)
+		log.Fatalf("failed to initialize C resource: %v", err)
 	}
 
 	// meterProviders
-	posMeterProvider, err := initMeterProvider(ctx, posResource)
+	aMeterProvider, err := initMeterProvider(ctx, aResource)
 	if err != nil {
-		log.Fatalf("failed to initialize POS/CDS meter provider: %v", err)
+		log.Fatalf("failed to initialize A meter provider: %v", err)
 	}
-	defer posMeterProvider.Shutdown(ctx)
+	defer aMeterProvider.Shutdown(ctx)
 
-	hubMeterProvider, err := initMeterProvider(ctx, hubResource)
+	bMeterProvider, err := initMeterProvider(ctx, bResource)
 	if err != nil {
-		log.Fatalf("failed to initialize HUB meter provider: %v", err)
+		log.Fatalf("failed to initialize B meter provider: %v", err)
 	}
-	defer hubMeterProvider.Shutdown(ctx)
+	defer bMeterProvider.Shutdown(ctx)
 
-	cloudMeterProvider, err := initMeterProvider(ctx, cloudResource)
+	cMeterProvider, err := initMeterProvider(ctx, cResource)
 	if err != nil {
-		log.Fatalf("failed to initialize CLOUD meter provider: %v", err)
+		log.Fatalf("failed to initialize C meter provider: %v", err)
 	}
-	defer cloudMeterProvider.Shutdown(ctx)
+	defer cMeterProvider.Shutdown(ctx)
 
-	// Counters
-	posCounter, err := initMetrics(posMeterProvider, "POS")
+	// Gauges
+	err = initGauges(aMeterProvider, "A")
 	if err != nil {
-		log.Fatalf("failed to initialize POS metrics: %v", err)
-	}
-
-	hubCounter, err := initMetrics(hubMeterProvider, "HUB")
-	if err != nil {
-		log.Fatalf("failed to initialize HUB metrics: %v", err)
+		log.Fatalf("failed to initialize A metrics: %v", err)
 	}
 
-	cloudCounter, err := initMetrics(cloudMeterProvider, "CLOUD")
+	err = initGauges(bMeterProvider, "B")
 	if err != nil {
-		log.Fatalf("failed to initialize CLOUD metrics: %v", err)
+		log.Fatalf("failed to initialize B metrics: %v", err)
 	}
 
-	var wg sync.WaitGroup
+	err = initGauges(cMeterProvider, "C")
+	if err != nil {
+		log.Fatalf("failed to initialize C metrics: %v", err)
+	}
 
-	handleRequest := func(pattern string, counter metric.Int64Counter, serviceName string) {
+	handleRequest := func(pattern string, _ *metric.Int64ObservableGauge, value *int64) {
 		http.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-			name := r.URL.Path[len(pattern):]
-			data := []attribute.KeyValue{
-				attribute.String("route", pattern+":name"),
-				attribute.String("name", name),
+			parts := strings.Split(r.URL.Path, "/")
+			if len(parts) != 3 {
+				http.Error(w, "Invalid URL format", http.StatusBadRequest)
+				return
 			}
 
-			counter.Add(r.Context(), 1, metric.WithAttributes(data...))
-			log.Printf("Received request for %s service: %s", serviceName, name)
+			val, err := strconv.ParseInt(parts[2], 10, 64)
+			if err != nil || (val != 0 && val != 1) {
+				http.Error(w, "Invalid value", http.StatusBadRequest)
+				return
+			}
 
-			fmt.Fprintf(w, "Hello from %s service, %s", serviceName, name)
+			mu.Lock()
+			*value = val
+			mu.Unlock()
+
+			log.Printf("Updated %s to %d", parts[1], val)
+			fmt.Fprintf(w, "Updated %s to %d", parts[1], val)
 		})
 	}
 
+	var wg sync.WaitGroup
 	wg.Add(3)
-	go func() {
-		defer wg.Done()
-		handleRequest("/pos/", posCounter, "POS")
-	}()
-	go func() {
-		defer wg.Done()
-		handleRequest("/hub/", hubCounter, "HUB")
-	}()
-	go func() {
-		defer wg.Done()
-		handleRequest("/cloud/", cloudCounter, "CLOUD")
-	}()
 
-	wg.Wait()
+	go func() {
+		defer wg.Done()
+		handleRequest("/a/", &aGauge, &aValue)
+	}()
+	go func() {
+		defer wg.Done()
+		handleRequest("/b/", &bGauge, &bValue)
+	}()
+	go func() {
+		defer wg.Done()
+		handleRequest("/c/", &cGauge, &cValue)
+	}()
 
 	log.Println("Server is up and running on port 8008")
 	log.Fatal(http.ListenAndServe(":8008", nil))
+
+	wg.Wait()
 }
