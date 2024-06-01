@@ -6,6 +6,9 @@ This project sets up a metric monitoring stack using Docker Compose. The stack i
 - An OpenTelemetry collector
 - Prometheus for metrics collection
 - Grafana for metrics visualization
+- OpenSearch for storing and analyzing metrics
+- OpenSearch Dashboard for visualizing metrics
+- DataPrepper for processing telemetry data
 - OTel Node.js instrumentation
 - OTel Go instrumentation
 
