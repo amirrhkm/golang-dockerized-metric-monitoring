@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/metric"
@@ -26,8 +25,6 @@ var (
 	aValue int64
 	bValue int64
 	cValue int64
-
-	mu sync.Mutex
 )
 
 func newResource(serviceName string) (*resource.Resource, error) {
@@ -87,9 +84,6 @@ func initGauges(meterProvider *sdkmetric.MeterProvider, serviceName string) erro
 	}
 
 	_, err = meter.RegisterCallback(func(ctx context.Context, observer metric.Observer) error {
-		mu.Lock()
-		defer mu.Unlock()
-
 		observer.ObserveInt64(aGauge, aValue)
 		observer.ObserveInt64(bGauge, bValue)
 		observer.ObserveInt64(cGauge, cValue)
@@ -103,99 +97,54 @@ func initGauges(meterProvider *sdkmetric.MeterProvider, serviceName string) erro
 	return nil
 }
 
+func handleRequest(pattern string, value *int64) {
+	http.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(r.URL.Path, "/")
+		if len(parts) != 3 {
+			http.Error(w, "Invalid URL format", http.StatusBadRequest)
+			return
+		}
+
+		val, err := strconv.ParseInt(parts[2], 10, 64)
+		if err != nil || (val != 0 && val != 1) {
+			http.Error(w, "Invalid value", http.StatusBadRequest)
+			return
+		}
+
+		*value = val
+
+		log.Printf("Updated %s to %d", parts[1], val)
+		fmt.Fprintf(w, "Updated %s to %d", parts[1], val)
+	})
+}
+
 func main() {
 	ctx := context.Background()
 
 	// Resources
-	aResource, err := newResource("A")
+	resource, err := newResource("hub")
 	if err != nil {
-		log.Fatalf("failed to initialize A resource: %v", err)
-	}
-	bResource, err := newResource("B")
-	if err != nil {
-		log.Fatalf("failed to initialize B resource: %v", err)
-	}
-	cResource, err := newResource("C")
-	if err != nil {
-		log.Fatalf("failed to initialize C resource: %v", err)
+		log.Fatalf("failed to initialize hub resource: %v", err)
 	}
 
-	// meterProviders
-	aMeterProvider, err := initMeterProvider(ctx, aResource)
+	// MeterProvider
+	meterProvider, err := initMeterProvider(ctx, resource)
 	if err != nil {
-		log.Fatalf("failed to initialize A meter provider: %v", err)
+		log.Fatalf("failed to initialize hub meter provider: %v", err)
 	}
-	defer aMeterProvider.Shutdown(ctx)
-
-	bMeterProvider, err := initMeterProvider(ctx, bResource)
-	if err != nil {
-		log.Fatalf("failed to initialize B meter provider: %v", err)
-	}
-	defer bMeterProvider.Shutdown(ctx)
-
-	cMeterProvider, err := initMeterProvider(ctx, cResource)
-	if err != nil {
-		log.Fatalf("failed to initialize C meter provider: %v", err)
-	}
-	defer cMeterProvider.Shutdown(ctx)
+	defer meterProvider.Shutdown(ctx)
 
 	// Gauges
-	err = initGauges(aMeterProvider, "A")
+	err = initGauges(meterProvider, "hub")
 	if err != nil {
-		log.Fatalf("failed to initialize A metrics: %v", err)
+		log.Fatalf("failed to initialize hub metrics: %v", err)
 	}
 
-	err = initGauges(bMeterProvider, "B")
-	if err != nil {
-		log.Fatalf("failed to initialize B metrics: %v", err)
-	}
-
-	err = initGauges(cMeterProvider, "C")
-	if err != nil {
-		log.Fatalf("failed to initialize C metrics: %v", err)
-	}
-
-	handleRequest := func(pattern string, _ *metric.Int64ObservableGauge, value *int64) {
-		http.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-			parts := strings.Split(r.URL.Path, "/")
-			if len(parts) != 3 {
-				http.Error(w, "Invalid URL format", http.StatusBadRequest)
-				return
-			}
-
-			val, err := strconv.ParseInt(parts[2], 10, 64)
-			if err != nil || (val != 0 && val != 1) {
-				http.Error(w, "Invalid value", http.StatusBadRequest)
-				return
-			}
-
-			mu.Lock()
-			*value = val
-			mu.Unlock()
-
-			log.Printf("Updated %s to %d", parts[1], val)
-			fmt.Fprintf(w, "Updated %s to %d", parts[1], val)
-		})
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(3)
-
-	go func() {
-		defer wg.Done()
-		handleRequest("/a/", &aGauge, &aValue)
-	}()
-	go func() {
-		defer wg.Done()
-		handleRequest("/b/", &bGauge, &bValue)
-	}()
-	go func() {
-		defer wg.Done()
-		handleRequest("/c/", &cGauge, &cValue)
-	}()
+	// Handle requests
+	handleRequest("/a/", &aValue)
+	handleRequest("/b/", &bValue)
+	handleRequest("/c/", &cValue)
 
 	log.Println("Server is up and running on port 8008")
 	log.Fatal(http.ListenAndServe(":8008", nil))
-
-	wg.Wait()
 }
