@@ -1,0 +1,5 @@
+:8008
+
+reverse_proxy otel-app-go-1:8008 otel-app-go-2:8008 otel-app-go-3:8008 {
+	lb_policy       round_robin
+}

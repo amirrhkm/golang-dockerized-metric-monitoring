@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -25,6 +27,8 @@ var (
 	aValue int64
 	bValue int64
 	cValue int64
+
+	instanceID string
 )
 
 func newResource(serviceName string) (*resource.Resource, error) {
@@ -32,6 +36,7 @@ func newResource(serviceName string) (*resource.Resource, error) {
 		resource.NewWithAttributes(semconv.SchemaURL,
 			semconv.ServiceNameKey.String(serviceName),
 			semconv.ServiceVersionKey.String("0.1.0"),
+			semconv.ServiceInstanceIDKey.String(instanceID),
 		))
 }
 
@@ -39,7 +44,7 @@ func initMeterProvider(ctx context.Context, res *resource.Resource) (*sdkmetric.
 	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:admin"))
 
 	metricExporter, err := otlpmetricgrpc.New(ctx,
-		otlpmetricgrpc.WithEndpoint("0.0.0.0:4317"),
+		otlpmetricgrpc.WithEndpoint("otel-collector:4317"),
 		otlpmetricgrpc.WithTLSCredentials(insecure.NewCredentials()),
 		otlpmetricgrpc.WithHeaders(map[string]string{"Authorization": authHeader}),
 	)
@@ -84,9 +89,9 @@ func initGauges(meterProvider *sdkmetric.MeterProvider, serviceName string) erro
 	}
 
 	_, err = meter.RegisterCallback(func(ctx context.Context, observer metric.Observer) error {
-		observer.ObserveInt64(aGauge, aValue)
-		observer.ObserveInt64(bGauge, bValue)
-		observer.ObserveInt64(cGauge, cValue)
+		observer.ObserveInt64(aGauge, aValue, metric.WithAttributes(attribute.String("instance_id", instanceID)))
+		observer.ObserveInt64(bGauge, bValue, metric.WithAttributes(attribute.String("instance_id", instanceID)))
+		observer.ObserveInt64(cGauge, cValue, metric.WithAttributes(attribute.String("instance_id", instanceID)))
 		return nil
 	}, aGauge, bGauge, cGauge)
 
@@ -119,6 +124,11 @@ func handleRequest(pattern string, value *int64) {
 }
 
 func main() {
+	instanceID = os.Getenv("INSTANCE_ID")
+	if instanceID == "" {
+		log.Fatal("INSTANCE_ID environment variable not set")
+	}
+
 	ctx := context.Background()
 
 	// Resources

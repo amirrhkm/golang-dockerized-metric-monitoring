@@ -1,8 +1,16 @@
 const axios = require("axios");
 
-function callApi(a, b, c) {
+function getRandomValue() {
+  return Math.floor(Math.random() * 2); // Generate random number between 0 and 1
+}
+
+function callApi() {
+  const a = getRandomValue();
+  const b = getRandomValue();
+  const c = getRandomValue();
+
   axios
-    .get(`http://localhost:8008/service/${a}`)
+    .get(`http://localhost:8008/a/${a}`)
     .then((response) => {
       console.log(`Request for ${a} completed successfully`);
     })
@@ -11,7 +19,7 @@ function callApi(a, b, c) {
     });
 
   axios
-    .get(`http://localhost:8008/service/${b}`)
+    .get(`http://localhost:8008/b/${b}`)
     .then((response) => {
       console.log(`Request for ${b} completed successfully`);
     })
@@ -20,7 +28,7 @@ function callApi(a, b, c) {
     });
 
   axios
-    .get(`http://localhost:8008/service/${c}`)
+    .get(`http://localhost:8008/c/${c}`)
     .then((response) => {
       console.log(`Request for ${c} completed successfully`);
     })
@@ -29,6 +37,4 @@ function callApi(a, b, c) {
     });
 }
 
-let index = 0;
-
-callApi(1, 0, 1);
+callApi();

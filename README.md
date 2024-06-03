@@ -100,6 +100,17 @@ This project sets up a metric monitoring stack using Docker Compose. The stack i
 ### Grafana
 - The Grafana configuration file and provisioning files should be placed in the `./grafana` directory.
 
+### OpenSearch
+
+POST _plugins/_query/_datasources
+{
+    "name" : "Prometheus",
+    "connector": "prometheus",
+    "properties" : {
+        "prometheus.uri" : "http://prometheus:9090"
+    }
+}
+
 ## Simple Architecture Diagram
 ![otel-dataprepper](https://github.com/amirrhkm/metrics-monitoring/assets/152793780/3810be1b-074a-44ad-988f-0fbf74978d22)
 
