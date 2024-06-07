@@ -16,6 +16,8 @@ processors:
   batch:
 
 exporters:
+  logging:
+    verbosity: detailed
   prometheus:
     endpoint: "0.0.0.0:8889"
   otlp/data-prepper:
@@ -29,4 +31,4 @@ service:
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [prometheus, otlp/data-prepper]
+      exporters: [logging, prometheus, otlp/data-prepper]

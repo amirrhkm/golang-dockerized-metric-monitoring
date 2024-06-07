@@ -3,12 +3,11 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"strconv"
-	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -31,12 +30,17 @@ var (
 	instanceID string
 )
 
+type HubParams struct {
+	ParamA int64 `json:"hub_param_a"`
+	ParamB int64 `json:"hub_param_b"`
+	ParamC int64 `json:"hub_param_c"`
+}
+
 func newResource(serviceName string) (*resource.Resource, error) {
 	return resource.Merge(resource.Default(),
 		resource.NewWithAttributes(semconv.SchemaURL,
 			semconv.ServiceNameKey.String(serviceName),
 			semconv.ServiceVersionKey.String("0.1.0"),
-			semconv.ServiceInstanceIDKey.String(instanceID),
 		))
 }
 
@@ -66,7 +70,7 @@ func initGauges(meterProvider *sdkmetric.MeterProvider, serviceName string) erro
 	var err error
 	aGauge, err = meter.Int64ObservableGauge(
 		serviceName+"_param_a",
-		metric.WithDescription("Tracks the status of param_a (0 or 1)"),
+		metric.WithDescription("status of service A"),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create gauge for param_a: %w", err)
@@ -74,7 +78,7 @@ func initGauges(meterProvider *sdkmetric.MeterProvider, serviceName string) erro
 
 	bGauge, err = meter.Int64ObservableGauge(
 		serviceName+"_param_b",
-		metric.WithDescription("Tracks the status of param_b (0 or 1)"),
+		metric.WithDescription("status of service B"),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create gauge for param_b: %w", err)
@@ -82,16 +86,22 @@ func initGauges(meterProvider *sdkmetric.MeterProvider, serviceName string) erro
 
 	cGauge, err = meter.Int64ObservableGauge(
 		serviceName+"_param_c",
-		metric.WithDescription("Tracks the status of param_c (0 or 1)"),
+		metric.WithDescription("status of service C"),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create gauge for param_c: %w", err)
 	}
 
+	attributes := attribute.String("instance_id", instanceID)
+
+	log.Printf("Recording metric: hub_param_a, value: %d, instance_id: %v\n", aValue, attributes)
+	log.Printf("Recording metric: hub_param_b, value: %d, instance_id: %v\n", bValue, attributes)
+	log.Printf("Recording metric: hub_param_c, value: %d, instance_id: %v\n", cValue, attributes)
+
 	_, err = meter.RegisterCallback(func(ctx context.Context, observer metric.Observer) error {
-		observer.ObserveInt64(aGauge, aValue, metric.WithAttributes(attribute.String("instance_id", instanceID)))
-		observer.ObserveInt64(bGauge, bValue, metric.WithAttributes(attribute.String("instance_id", instanceID)))
-		observer.ObserveInt64(cGauge, cValue, metric.WithAttributes(attribute.String("instance_id", instanceID)))
+		observer.ObserveInt64(aGauge, aValue, metric.WithAttributes(attributes))
+		observer.ObserveInt64(bGauge, bValue, metric.WithAttributes(attributes))
+		observer.ObserveInt64(cGauge, cValue, metric.WithAttributes(attributes))
 		return nil
 	}, aGauge, bGauge, cGauge)
 
@@ -102,25 +112,30 @@ func initGauges(meterProvider *sdkmetric.MeterProvider, serviceName string) erro
 	return nil
 }
 
-func handleRequest(pattern string, value *int64) {
-	http.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-		parts := strings.Split(r.URL.Path, "/")
-		if len(parts) != 3 {
-			http.Error(w, "Invalid URL format", http.StatusBadRequest)
-			return
-		}
+func handleJSONRequest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
 
-		val, err := strconv.ParseInt(parts[2], 10, 64)
-		if err != nil || (val != 0 && val != 1) {
-			http.Error(w, "Invalid value", http.StatusBadRequest)
-			return
-		}
+	var params HubParams
+	err := json.NewDecoder(r.Body).Decode(&params)
+	if err != nil {
+		http.Error(w, "Invalid JSON format", http.StatusBadRequest)
+		return
+	}
 
-		*value = val
+	if (params.ParamA != 0 && params.ParamA != 1) || (params.ParamB != 0 && params.ParamB != 1) || (params.ParamC != 0 && params.ParamC != 1) {
+		http.Error(w, "Invalid parameter value", http.StatusBadRequest)
+		return
+	}
 
-		log.Printf("Updated %s to %d", parts[1], val)
-		fmt.Fprintf(w, "Updated %s to %d", parts[1], val)
-	})
+	aValue = params.ParamA
+	bValue = params.ParamB
+	cValue = params.ParamC
+
+	log.Printf("Updated parameters: a=%d, b=%d, c=%d", aValue, bValue, cValue)
+	fmt.Fprintf(w, "Updated parameters: a=%d, b=%d, c=%d", aValue, bValue, cValue)
 }
 
 func main() {
@@ -131,29 +146,23 @@ func main() {
 
 	ctx := context.Background()
 
-	// Resources
 	resource, err := newResource("hub")
 	if err != nil {
 		log.Fatalf("failed to initialize hub resource: %v", err)
 	}
 
-	// MeterProvider
 	meterProvider, err := initMeterProvider(ctx, resource)
 	if err != nil {
 		log.Fatalf("failed to initialize hub meter provider: %v", err)
 	}
 	defer meterProvider.Shutdown(ctx)
 
-	// Gauges
 	err = initGauges(meterProvider, "hub")
 	if err != nil {
 		log.Fatalf("failed to initialize hub metrics: %v", err)
 	}
 
-	// Handle requests
-	handleRequest("/a/", &aValue)
-	handleRequest("/b/", &bValue)
-	handleRequest("/c/", &cValue)
+	http.HandleFunc("/update", handleJSONRequest)
 
 	log.Println("Server is up and running on port 8008")
 	log.Fatal(http.ListenAndServe(":8008", nil))

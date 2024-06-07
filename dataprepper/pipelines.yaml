@@ -6,13 +6,21 @@ otel-metrics-pipeline:
       ssl: false
       port: 21892
       authentication:
-        unauthenticated:
+        unauthenticated: {}
   processor:
-    - otel_metrics_raw_processor:
+    - aggregate:
+        identification_keys: ["instance_id"]
+        action:
+          histogram:
+            key: "value"
+            record_minmax: true
+            units: "seconds"
+            buckets: [0, 1]
+        group_duration: "20s"
+        aggregate_when: "true"
   sink:
     - opensearch:
         hosts: ["http://opensearch:9200"]
-        index_type: custom
         index: metrics_index
         username: admin
         password: admin

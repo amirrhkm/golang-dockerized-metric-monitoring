@@ -14,20 +14,14 @@ services:
     networks:
       - opensearch-net
 
-# $env:GOOS="windows"
-# $env:GOARCH="amd64"
-# go build -o app-go.exe
-
-  app-go:
-    build: ./app-go
-    ports:
-      - "8008:8008"
-    environment:
-      PORT: 8008
-    depends_on:
-      - otel-collector
-    networks:
-      - opensearch-net
+##
+$env:GOOS="windows"
+$env:GOARCH="amd64"
+go build -o app-go.exe
+$env:GOOS="linux"
+$env:GOARCH="amd64"
+go build -o app-go.exe
+##
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest

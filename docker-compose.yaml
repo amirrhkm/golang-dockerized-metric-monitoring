@@ -8,7 +8,9 @@ services:
     networks:
       - opensearch-net
     deploy:
-      replicas: 3
+      replicas: 4
+    depends_on:
+      - otel-collector
 
   caddy:
     image: caddy:latest
@@ -95,6 +97,7 @@ services:
       - ./dataprepper/pipelines.yaml:/usr/share/data-prepper/pipelines/pipelines.yaml
     depends_on:
       - opensearch
+      - opensearch-dashboards
       - otel-collector
     ports:
       - 21890:21890
