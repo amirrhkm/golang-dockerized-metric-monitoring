@@ -1,0 +1,1 @@
+# Sandbox for OpenTelemetry Collector - DataPrepper - OpenSearch - OpenSearch Dashboard
