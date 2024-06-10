@@ -1,0 +1,114 @@
+version: "2"
+
+services:
+  app-go:
+    build: ./app-go
+    environment:
+      - PORT=8008
+    networks:
+      - opensearch-net
+    deploy:
+      replicas: 4
+    depends_on:
+      - otel-collector
+
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    ports:
+      - "8008:8008"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+    networks:
+      - opensearch-net
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    command: ["--config=/etc/otelcol-config.yaml", ""]
+    volumes:
+      - ./collector/otelcol-config.yaml:/etc/otelcol-config.yaml
+    ports:
+      - "1888:1888" # pprof extension
+      - "8888:8888" # Prometheus metrics exposed by the collector
+      - "8889:8889" # Prometheus exporter metrics
+      - "13133:13133" # health_check extension
+      - "4317:4317" # OTLP gRPC receiver
+      - "55679:55679" # zpages extension
+      - "4318:4318"
+    networks:
+      - opensearch-net
+
+  prometheus:
+    image: quay.io/prometheus/prometheus:v2.34.0
+    container_name: prometheus
+    command: --config.file=/etc/prometheus/prometheus.yml --no-scrape.adjust-timestamps
+    volumes:
+      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - opensearch-net
+
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch
+    environment:
+      - cluster.name=opensearch-cluster 
+      - node.name=opensearch 
+      - discovery.seed_hosts=opensearch 
+      - cluster.initial_cluster_manager_nodes=opensearch
+      - bootstrap.memory_lock=true 
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m" 
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+      - "DISABLE_SECURITY_PLUGIN=true" 
+    ulimits:
+      memlock:
+        soft: -1 
+        hard: -1
+      nofile:
+        soft: 65536 
+        hard: 65536
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data 
+    ports:
+      - 9200:9200
+      - 9600:9600 
+    networks:
+      - opensearch-net
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:latest
+    container_name: opensearch-dashboards
+    ports:
+      - 5601:5601
+    expose:
+      - "5601" 
+    environment:
+      - 'OPENSEARCH_HOSTS=["http://opensearch:9200"]'
+      - "DISABLE_SECURITY_DASHBOARDS_PLUGIN=true" 
+    networks:
+      - opensearch-net
+
+  data-prepper:
+    image: opensearchproject/data-prepper:latest
+    container_name: data-prepper
+    volumes:
+      - ./dataprepper/pipelines.yaml:/usr/share/data-prepper/pipelines/pipelines.yaml
+    depends_on:
+      - opensearch
+      - opensearch-dashboards
+      - otel-collector
+    ports:
+      - 21890:21890
+      - 21891:21891
+      - 21892:21892
+      - 4900:4900
+    networks:
+      - opensearch-net
+
+volumes:
+  opensearch-data:
+
+networks:
+  opensearch-net:

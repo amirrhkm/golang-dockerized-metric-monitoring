@@ -1,0 +1,17 @@
+otel-metrics-pipeline:
+  workers: 1
+  delay: 5000
+  source:
+    otel_metrics_source:
+      ssl: false
+      port: 21892
+      authentication:
+        unauthenticated: {}
+  processor:
+    - otel_metrics_raw_processor:
+  sink:
+    - opensearch:
+        hosts: ["http://opensearch:9200"]
+        index: metrics_index
+        username: admin
+        password: admin
