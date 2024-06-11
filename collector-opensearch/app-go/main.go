@@ -2,70 +2,104 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"sync"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
-	aValue int64
-	bValue int64
-	cValue int64
-
+	aValue     int64
+	bValue     int64
+	cValue     int64
 	instanceID string
+	mu         sync.Mutex
 )
 
 type HubParams struct {
-	ParamA int64 `json:"hub_param_a"`
-	ParamB int64 `json:"hub_param_b"`
-	ParamC int64 `json:"hub_param_c"`
+	ParamA *int64 `json:"hub_param_a,omitempty"`
+	ParamB *int64 `json:"hub_param_b,omitempty"`
+	ParamC *int64 `json:"hub_param_c,omitempty"`
 }
 
-func newResource(serviceName string) (*resource.Resource, error) {
+func newResource() (*resource.Resource, error) {
 	return resource.Merge(resource.Default(),
 		resource.NewWithAttributes(semconv.SchemaURL,
-			semconv.ServiceNameKey.String(serviceName),
+			semconv.ServiceNameKey.String(instanceID),
 		))
 }
 
-func initMeterProvider(ctx context.Context, res *resource.Resource) (*sdkmetric.MeterProvider, error) {
-	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:admin"))
+func newManualReader() *sdkmetric.ManualReader {
+	return sdkmetric.NewManualReader(
+		sdkmetric.WithTemporalitySelector(func(kind sdkmetric.InstrumentKind) metricdata.Temporality {
+			return metricdata.DeltaTemporality
+		}),
+	)
+}
 
-	metricExporter, err := otlpmetricgrpc.New(ctx,
+func initMeterProvider(res *resource.Resource, reader *sdkmetric.ManualReader) (*sdkmetric.MeterProvider, error) {
+	return sdkmetric.NewMeterProvider(
+		sdkmetric.WithReader(reader),
+		sdkmetric.WithResource(res),
+	), nil
+}
+
+func initMetricExporter(ctx context.Context) (sdkmetric.Exporter, error) {
+	authHeader := "Basic " + "admin:admin"
+
+	return otlpmetricgrpc.New(ctx,
 		otlpmetricgrpc.WithEndpoint("otel-collector:4317"),
 		otlpmetricgrpc.WithTLSCredentials(insecure.NewCredentials()),
 		otlpmetricgrpc.WithHeaders(map[string]string{"Authorization": authHeader}),
 	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metrics exporter: %w", err)
-	}
-
-	meterProvider := sdkmetric.NewMeterProvider(
-		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter)),
-		sdkmetric.WithResource(res),
-	)
-
-	return meterProvider, nil
 }
 
-func initHistogram(ctx context.Context, meterProvider *sdkmetric.MeterProvider, serviceName string) {
+func collectAndExportMetrics(ctx context.Context, reader *sdkmetric.ManualReader, exporter sdkmetric.Exporter) {
+	for {
+		rm := &metricdata.ResourceMetrics{}
+		if err := reader.Collect(ctx, rm); err != nil {
+			log.Printf("Failed to collect metrics: %v", err)
+			continue
+		}
+
+		if err := exporter.Export(ctx, rm); err != nil {
+			log.Printf("Failed to export metrics: %v", err)
+		}
+
+		time.Sleep(60 * time.Second)
+	}
+}
+
+func initHistogram(ctx context.Context, meterProvider *sdkmetric.MeterProvider, serviceName string, intervalDone <-chan struct{}) {
 	meter := meterProvider.Meter(serviceName + "-meter")
 
-	histogram, err := meter.Int64Histogram("hub-utilization", metric.WithDescription("Sum of three parameters"), metric.WithExplicitBucketBoundaries(0, 1, 2, 3))
+	histogram, err := meter.Int64Histogram("hub-utilization",
+		metric.WithDescription("Sum of parameters a, b, and c"))
 	if err != nil {
 		fmt.Printf("Failed to create histogram: %v\n", err)
 	}
+
+	go func() {
+		for range intervalDone {
+			mu.Lock()
+			sum := aValue + bValue + cValue
+			histogram.Record(ctx, sum, metric.WithAttributes(attribute.String("instance_id", instanceID)))
+			log.Printf("Recorded sum %d to histogram for interval", sum)
+			mu.Unlock()
+		}
+	}()
 
 	http.HandleFunc("/update", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -74,24 +108,22 @@ func initHistogram(ctx context.Context, meterProvider *sdkmetric.MeterProvider, 
 		}
 
 		var params HubParams
-		err := json.NewDecoder(r.Body).Decode(&params)
-		if err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 			http.Error(w, "Invalid JSON format", http.StatusBadRequest)
 			return
 		}
 
-		if (params.ParamA != 0 && params.ParamA != 1) || (params.ParamB != 0 && params.ParamB != 1) || (params.ParamC != 0 && params.ParamC != 1) {
-			http.Error(w, "Invalid parameter value", http.StatusBadRequest)
-			return
+		mu.Lock()
+		if params.ParamA != nil {
+			aValue = *params.ParamA
 		}
-
-		aValue = params.ParamA
-		bValue = params.ParamB
-		cValue = params.ParamC
-
-		sum := aValue + bValue + cValue
-		log.Printf("Recording (%d) a=%d, b=%d, c=%d", sum, aValue, bValue, cValue)
-		histogram.Record(ctx, sum, metric.WithAttributes(attribute.String("instance_id", instanceID)))
+		if params.ParamB != nil {
+			bValue = *params.ParamB
+		}
+		if params.ParamC != nil {
+			cValue = *params.ParamC
+		}
+		mu.Unlock()
 
 		log.Printf("Updated parameters: a=%d, b=%d, c=%d", aValue, bValue, cValue)
 		fmt.Fprintf(w, "Updated parameters: a=%d, b=%d, c=%d", aValue, bValue, cValue)
@@ -106,18 +138,42 @@ func main() {
 
 	ctx := context.Background()
 
-	resource, err := newResource("hub")
+	resource, err := newResource()
 	if err != nil {
 		log.Fatalf("failed to initialize hub resource: %v", err)
 	}
 
-	meterProvider, err := initMeterProvider(ctx, resource)
+	reader := newManualReader()
+
+	meterProvider, err := initMeterProvider(resource, reader)
 	if err != nil {
 		log.Fatalf("failed to initialize hub meter provider: %v", err)
 	}
 	defer meterProvider.Shutdown(ctx)
 
-	go initHistogram(ctx, meterProvider, "hub")
+	exporter, err := initMetricExporter(ctx)
+	if err != nil {
+		log.Fatalf("failed to initialize metric exporter: %v", err)
+	}
+
+	intervalDone := make(chan struct{})
+
+	go collectAndExportMetrics(ctx, reader, exporter)
+
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				intervalDone <- struct{}{}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	go initHistogram(ctx, meterProvider, "hub", intervalDone)
 
 	log.Println("Server is up and running on port 8008")
 	log.Fatal(http.ListenAndServe(":8008", nil))
