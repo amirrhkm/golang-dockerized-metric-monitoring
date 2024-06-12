@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -82,7 +81,7 @@ func collectAndExportMetrics(ctx context.Context, reader *sdkmetric.ManualReader
 	}
 }
 
-func initHistogram(ctx context.Context, meterProvider *sdkmetric.MeterProvider, serviceName string, intervalDone <-chan struct{}) {
+func initHistogram(ctx context.Context, meterProvider *sdkmetric.MeterProvider, serviceName string) {
 	meter := meterProvider.Meter(serviceName + "-meter")
 
 	histogram, err := meter.Int64Histogram("hub-utilization",
@@ -92,12 +91,19 @@ func initHistogram(ctx context.Context, meterProvider *sdkmetric.MeterProvider, 
 	}
 
 	go func() {
-		for range intervalDone {
-			mu.Lock()
-			sum := aValue + bValue + cValue
-			histogram.Record(ctx, sum, metric.WithAttributes(attribute.String("instance_id", instanceID)))
-			log.Printf("Recorded sum %d to histogram for interval", sum)
-			mu.Unlock()
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				mu.Lock()
+				sum := aValue + bValue + cValue
+				histogram.Record(ctx, sum)
+				log.Printf("Interval recorded with sum = %d, current value of (a,b,c) = %d, %d, %d", sum, aValue, bValue, cValue)
+				mu.Unlock()
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
@@ -156,24 +162,8 @@ func main() {
 		log.Fatalf("failed to initialize metric exporter: %v", err)
 	}
 
-	intervalDone := make(chan struct{})
-
 	go collectAndExportMetrics(ctx, reader, exporter)
-
-	go func() {
-		ticker := time.NewTicker(60 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				intervalDone <- struct{}{}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	go initHistogram(ctx, meterProvider, "hub", intervalDone)
+	go initHistogram(ctx, meterProvider, "hub")
 
 	log.Println("Server is up and running on port 8008")
 	log.Fatal(http.ListenAndServe(":8008", nil))
