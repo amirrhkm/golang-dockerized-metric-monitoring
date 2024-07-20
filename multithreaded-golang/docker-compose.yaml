@@ -1,6 +1,13 @@
 version: "2"
 
 services:
+  app-go:
+    build: ./app-go
+    environment:
+      - PORT=8008
+    networks:
+      - opensearch-net
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     command: ["--config=/etc/otelcol-config.yaml", ""]
