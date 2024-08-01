@@ -2,13 +2,13 @@ version: "2"
 
 services:
   app-go:
-    build: ./app-go
+    build: ./app-go #$env:GOOS="windows"; $env:GOARCH="amd64"; go build -o app-go.exe main.go
     environment:
       - PORT=8008
     networks:
       - opensearch-net
     deploy:
-      replicas: 4
+      replicas: 6
     depends_on:
       - otel-collector
 

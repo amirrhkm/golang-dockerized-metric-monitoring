@@ -1,5 +1,5 @@
 :8008
 
-reverse_proxy collector-opensearch-app-go-1:8008 collector-opensearch-app-go-2:8008 collector-opensearch-app-go-3:8008 collector-opensearch-app-go-4:8008 {
+reverse_proxy collector-opensearch-pipeline-app-go-1:8008 collector-opensearch-pipeline-app-go-2:8008 collector-opensearch-pipeline-app-go-3:8008 collector-opensearch-pipeline-app-go-4:8008 collector-opensearch-pipeline-app-go-5:8008 collector-opensearch-pipeline-app-go-6:8008 {
 	lb_policy       round_robin
 }
