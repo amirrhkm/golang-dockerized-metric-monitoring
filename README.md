@@ -1,6 +1,6 @@
 # Docker Compose Setup for Metric Monitoring
 
-## Overview
+<h2 align="center"> -=-=-= Overview =-=-=- </h2>
 
 This project sets up a metric monitoring stack using Docker Compose. The stack includes:
 - An OpenTelemetry collector
@@ -9,10 +9,15 @@ This project sets up a metric monitoring stack using Docker Compose. The stack i
 - OpenSearch for storing and analyzing metrics
 - OpenSearch Dashboard for visualizing metrics
 - DataPrepper for processing telemetry data
-- OTel Node.js instrumentation
-- OTel Go instrumentation
+- OTel JS SDK instrumentation
+- OTel Go SDK instrumentation
 
-## Services
+| No | Pipelines | Description |
+| ---- | ---- | ---- |
+| 1 | JS SDK → OpenTelemetry Collector → Prometheus → Grafana | This pipeline efficiently ingests metrics telemetry data, specifically focusing on counter-type metrics. It processes and aggregates incoming data streams in real-time, enabling structured monitoring and analysis of system performance indicators. |
+| 2 | Go SDK → OpenTelemetry Collector → DataPrepper → OpenSearch | This pipeline specializes in ingesting and processing metrics telemetry data, with a focus on gauges and histograms. It efficiently handles these data types, providing real-time insights into system performance and resource utilization. By integrating gauge measurements and histogram distributions, the pipeline enables comprehensive analysis and visualization of key performance indicators, to make data-driven decisions and optimize the systems effectively. |
+
+<h2 align="center"> -=-=-= Services =-=-=- </h2>
 
 ### otel-collector
 - **Purpose**: Collects telemetry data.
@@ -70,54 +75,66 @@ This project sets up a metric monitoring stack using Docker Compose. The stack i
 - **Depends on**: `opensearch`, `otel-collector`.
 
 ### app-node
-- **Purpose**: Runs the REST application along with OTel Nodejs instrumentation.
+- **Purpose**: Runs the REST application along with OTel Javascript SDK instrumentation.
 - **Build**: Uses the Dockerfile located in `./app-node`.
+- **Ports**: Exposes port 8080.
+- **Environment Variables**: Sets the `PORT` to **8080**.
+
+### app-go
+- **Purpose**: Runs the Go Server along with OTel Go SDK instrumentation.
+- **Build**: Uses the Dockerfile located in `./app-go`.
 - **Ports**: Exposes port 8008.
 - **Environment Variables**: Sets the `PORT` to **8008**.
 
 ## Usage
 1. **Clone**: To get repo, run:
    ```sh
-   git clone https://github.com/amirrhkm/metrics-monitoring.git
+   git clone https://github.com/amirrhkm/golang-dockerized-metric-monitoring.git
    ```
 
-2. **Run**: To run the services, navigate to the directory containing `docker-compose.yaml` and run:
+2. **Run**: To run the services, navigate to the directory containing `docker-compose.yaml` (either collector-prometheus-pipeline or collector-opensearch-pipeline) and run:
    ```sh
    docker-compose up -d
    ```
    
-3. **Run**: To run Go service, navigate to directory `app-go` and run:
-   ```sh
-   go run .
-   ```
- 
-4. **Test**: To send metric into OpenTelemetry collector endpoint, navigate to directory `app-node` and run:
-- Install npm modules and get dependency:
+3. **Test**: To send metric into OpenTelemetry collector endpoint;
+   
+   - For `app-node` service, navigate to directory `app-node` and run:
+   
+   Install npm modules and get dependency:W
    ```sh
    npm install
    ```
-- send API request to http://localhost:8008 (Go)
-   ```sh
-   node trigger-go.js
-   ```
-- send API request to http://localhost:8080 (Node.js)
+   send API request to http://localhost:8080
    ```sh
    node trigger-node.js
    ```
 
+   - For `app-go` service, send JSON API request to `localhost:8008/update` using Postman which Caddy will redirect into their designated containers.
+   ```JSON
+   {
+      hub_param_a: 1,
+      hub_param_b: 1,
+      hub_param_c: 1,
+   }
+   ```
+
 5. **Access Services**:
-- REST App: http://localhost:8008 (Go) & http://localhost:8080 (Node.js)
+- REST App: http://localhost:8008 (Go) & http://localhost:8080 (JS)
 - Prometheus: http://localhost:9090
 - Grafana: http://localhost:3000
 - OpenSearch: http://localhost:9200
 - OpenSearch Dashboards: http://localhost:5601
+
+   #### Heatmap visualization example utilising sum of 3 parameters
+   ![Heatmap visualization example](https://github.com/user-attachments/assets/28bf5da0-a38a-4ba9-bee2-83a8e38fb6df)
 
 6. **Shut Down**: To stop and remove the containers, run:
    ```sh
    docker-compose down -v
    ```
 
-## Configuration
+<h2 align="center"> -=-=-= Configurations =-=-=- </h2>
 
 ### REST Node.js App
 - The REST application source code should placed in `./app-node` directory.
@@ -135,8 +152,12 @@ This project sets up a metric monitoring stack using Docker Compose. The stack i
 - The DataPrepper pipeline configuration file should be placed in the `./dataprepper/pipelines.yaml` file.
 
 ## Simple Architecture Diagram
-![metric-monitoring](https://github.com/amirrhkm/metrics-monitoring/assets/152793780/f0b8bfb4-6287-4e63-b70d-e5c49da97f6a)
 
+### 1. Collector-Prometheus Pipeline
+![Collector-Prometheus-Pipeline](https://github.com/user-attachments/assets/0e82a200-94a7-4417-bb30-b4d9f167727c)
+
+### 2. Collector-OpenSearch Pipeline
+![OpenSearch-Pipeline drawio](https://github.com/user-attachments/assets/6801194d-3297-4f83-8fe4-a0bc44a173bf)
 
 
 
