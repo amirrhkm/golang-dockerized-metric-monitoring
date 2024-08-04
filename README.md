@@ -1,5 +1,3 @@
-# Docker Compose Setup for Metric Monitoring
-
 <h2 align="center"> -=-=-= Overview =-=-=- </h2>
 
 This project sets up a metric monitoring stack using Docker Compose. The stack includes:
@@ -101,7 +99,7 @@ This project sets up a metric monitoring stack using Docker Compose. The stack i
    
    - For `app-node` service, navigate to directory `app-node` and run:
    
-   Install npm modules and get dependency:W
+   Install npm modules and get dependency:
    ```sh
    npm install
    ```
