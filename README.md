@@ -100,7 +100,7 @@ This project sets up a metric monitoring stack using Docker Compose. The stack i
    
    - For `app-node` service, navigate to directory `app-node` and run:
    
-   Install npm modules and get dependency:W
+   Install npm modules and get dependency:
    ```sh
    npm install
    ```
