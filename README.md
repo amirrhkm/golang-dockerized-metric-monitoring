@@ -1,5 +1,3 @@
-# Docker Compose Setup for Metric Monitoring
-
 <h2 align="center"> -=-=-= Overview =-=-=- </h2>
 
 This project sets up a metric monitoring stack using Docker Compose. The stack includes:
@@ -86,7 +84,8 @@ This project sets up a metric monitoring stack using Docker Compose. The stack i
 - **Ports**: Exposes port 8008.
 - **Environment Variables**: Sets the `PORT` to **8008**.
 
-## Usage
+<h2 align="center"> -=-=-= Usage =-=-=- </h2>
+
 1. **Clone**: To get repo, run:
    ```sh
    git clone https://github.com/amirrhkm/golang-dockerized-metric-monitoring.git
@@ -151,13 +150,15 @@ This project sets up a metric monitoring stack using Docker Compose. The stack i
 ###  DataPrepper
 - The DataPrepper pipeline configuration file should be placed in the `./dataprepper/pipelines.yaml` file.
 
-## Simple Architecture Diagram
+
+<h2 align="center"> -=-=-= Pipelines Architecture Diagram =-=-=- </h2>
 
 ### 1. Collector-Prometheus Pipeline
 ![Collector-Prometheus-Pipeline](https://github.com/user-attachments/assets/0e82a200-94a7-4417-bb30-b4d9f167727c)
 
 ### 2. Collector-OpenSearch Pipeline
-![OpenSearch-Pipeline drawio](https://github.com/user-attachments/assets/6801194d-3297-4f83-8fe4-a0bc44a173bf)
+![Collector-OpenSearch-Pipeline](https://github.com/user-attachments/assets/b4af276c-b076-4632-8ea1-569fba0236e1)
+
 
 
 
